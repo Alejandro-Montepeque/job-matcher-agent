@@ -1,0 +1,110 @@
+name: Deploy backend to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  SERVICE: job-matcher-api
+  REPO: job-matcher
+  IMAGE_NAME: api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install deps
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Ensure Artifact Registry repo exists
+        run: |
+          gcloud artifacts repositories describe $REPO \
+            --location=$REGION --project=$PROJECT_ID 2>/dev/null || \
+          gcloud artifacts repositories create $REPO \
+            --repository-format=docker \
+            --location=$REGION \
+            --project=$PROJECT_ID
+
+      - name: Build Docker image
+        run: |
+          IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME
+          docker build \
+            -t $IMAGE:${{ github.sha }} \
+            -t $IMAGE:latest \
+            backend
+
+      - name: Push Docker image
+        run: |
+          IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE=$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:${{ github.sha }}
+          gcloud run deploy $SERVICE \
+            --image=$IMAGE \
+            --region=$REGION \
+            --project=$PROJECT_ID \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --memory=512Mi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=3 \
+            --set-secrets=GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest \
+            --set-env-vars=ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+
+      - name: Show service URL
+        run: |
+          gcloud run services describe $SERVICE \
+            --region=$REGION \
+            --project=$PROJECT_ID \
+            --format='value(status.url)'

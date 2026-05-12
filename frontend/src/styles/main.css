@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-bg text-ink min-h-screen;
+  }
+}
+
+@layer components {
+  .container-app {
+    @apply max-w-5xl mx-auto px-6 lg:px-8;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg
+           bg-accent text-white font-semibold hover:opacity-90 transition
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .card {
+    @apply bg-bg-card border border-bg-border rounded-xl p-6;
+  }
+}
