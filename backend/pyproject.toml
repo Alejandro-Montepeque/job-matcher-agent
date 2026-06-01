@@ -33,9 +33,23 @@ packages = ["app"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI uses these as default values (Depends, File, Form, Query, Body, Path, Header).
+# Tell B008 they are safe to call in argument defaults.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Body",
+    "fastapi.Path",
+    "fastapi.Header",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
