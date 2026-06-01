@@ -74,6 +74,19 @@ echo "REPLACE_WITH_YOUR_NEON_URL" | gcloud secrets create database-url \
   --data-file=- \
   --project="$PROJECT_ID" 2>/dev/null || true
 
+# Cloud Run runs containers using the default Compute Engine service account
+# (PROJECT_NUMBER-compute@developer.gserviceaccount.com). Grant it read access
+# to the secrets so the deployed revision can mount them as env vars.
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+echo "Granting Secret Accessor to Cloud Run runtime SA ($COMPUTE_SA)..."
+for secret in gemini-api-key database-url; do
+  gcloud secrets add-iam-policy-binding "$secret" \
+    --member="serviceAccount:$COMPUTE_SA" \
+    --role="roles/secretmanager.secretAccessor" \
+    --project="$PROJECT_ID" \
+    --quiet
+done
+
 echo
 echo "Done. Add these GitHub repo secrets:"
 echo "  GCP_PROJECT_ID         = $PROJECT_ID"
