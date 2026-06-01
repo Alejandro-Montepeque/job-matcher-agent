@@ -100,7 +100,7 @@ jobs:
             --min-instances=0 \
             --max-instances=3 \
             --set-secrets=GEMINI_API_KEY=gemini-api-key:latest,DATABASE_URL=database-url:latest \
-            --set-env-vars=ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+            --set-env-vars="^@^ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}"
 
       - name: Show service URL
         run: |
